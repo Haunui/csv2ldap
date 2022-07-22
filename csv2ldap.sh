@@ -1,6 +1,8 @@
 #!/usr/bin/bash
 
 FILE=$1
+IP=$2
+DN=$3
 
 AU_TEMPLATE_FILE=templates/adduser.ldif.template
 AG_TEMPLATE_FILE=templates/addgroup.ldif.template
@@ -16,8 +18,8 @@ RENDER_MODIFY_FILE=render_modify.ldif
 
 HEADER=
 
-if [ -z "$FILE" ]; then
-	echo "Usage: $0 <file>"
+if [ -z "$FILE" ] || [ -z "$IP" ] || [ -z "$DN" ]; then
+	echo "Usage: $0 <file> <ip> <dn>"
 	exit 1
 fi
 
@@ -30,7 +32,7 @@ while IFS= read -r line; do
 		BASE_ID=$(cat BASE_ID)
 		f=0
 		while [ $f -eq 0 ]; do
-			l_found=$(ldapsearch -x -w password -D "cn=admin,dc=haunui,dc=local" -H ldap://192.168.0.5/ -LLL -b "ou=people,dc=haunui,dc=local" uidNumber=$BASE_ID | wc -l)
+			l_found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "ou=users,$DN" uidNumber=$BASE_ID | wc -l)
 
 
 			if [ $l_found -ne 0 ]; then
@@ -79,8 +81,8 @@ while IFS= read -r line; do
 			col=$(($col+1))
 		done
 
-		DN="uid=$ID,ou=people,dc=haunui,dc=local"
-		found=$(ldapsearch -x -w password -D "cn=admin,dc=haunui,dc=local" -H ldap://192.168.0.5/ -LLL -b "$DN" 2> /dev/null)
+		DN="uid=$ID,ou=users,$DN"
+		found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "$DN" 2> /dev/null)
 
 		if [ $? -eq 0 ]; then # EXIST
 			if [[ $(echo "$found" | grep "cn: " | sed 's/cn: //g') != $FIRST_NAME ]]; then
@@ -115,8 +117,8 @@ while IFS= read -r line; do
 				echo "" >> $U_RENDER_FILE
 			fi
 
-			DN="cn=ldapstandard,ou=groups,dc=haunui,dc=local"
-			found=$(ldapsearch -x -w password -D "cn=admin,dc=haunui,dc=local" -H ldap://192.168.0.5/ -LLL -b "$DN" 2> /dev/null)
+			DN="cn=ldapstandard,ou=groups,$DN"
+			found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "$DN" 2> /dev/null)
 
 			if [[ $GROUP2_NAME == ldapadmin ]]; then
 				if echo "$found" | grep "memberUid: $ID" &>/dev/null; then
@@ -143,8 +145,8 @@ while IFS= read -r line; do
 			fi
 
 
-			DN="cn=ldapadmin,ou=groups,dc=haunui,dc=local"
-			found=$(ldapsearch -x -w password -D "cn=admin,dc=haunui,dc=local" -H ldap://192.168.0.5/ -LLL -b "$DN" 2> /dev/null)
+			DN="cn=ldapadmin,ou=groups,$DN"
+			found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "$DN" 2> /dev/null)
 
 			if [[ $GROUP2_NAME == ldapstandard ]]; then
 				if echo "$found" | grep "memberUid: $ID" &>/dev/null; then
@@ -212,12 +214,12 @@ while IFS= read -r line; do
 		# RECUPERE TOUS LES UTILISATEURS CSV
 		# SI PAS PRESENT DANS LE CSV, CA DEGAGE
 
-		uidlist=$(ldapsearch -x -w password -D "cn=admin,dc=haunui,dc=local" -H ldap://192.168.0.5/ -b "ou=people,dc=haunui,dc=local" | grep "uid=" | sed 's/dn: //g')
+		uidlist=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -b "ou=users,$DN" | grep "uid=" | sed 's/dn: //g')
 
 		while IFS= read -r line; do
 			ID=$(echo "$line" | cut -d',' -f1 | cut -d'=' -f2)
 			if ! grep "$ID" data.csv &>/dev/null; then
-				ldapdelete -x -w password -D "cn=admin,dc=haunui,dc=local" -H ldap://192.168.0.5/ "$line"
+				ldapdelete -x -w password -D "cn=admin,$DN" -H ldap://$IP/ "$line"
 				echo "User $line removed"
 			fi
 		done <<< "$uidlist"
@@ -230,10 +232,10 @@ if [ ! -f "$RENDER_ADD_FILE" ] && [ ! -f "$RENDER_MODIFY_FILE" ]; then
 else
 	echo "Send ldif file to server"
 	if [ -f "$RENDER_ADD_FILE" ]; then
-		ldapadd -x -w password -D "cn=admin,dc=haunui,dc=local" -H ldap://192.168.0.5/ -f $RENDER_ADD_FILE
+		ldapadd -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -f $RENDER_ADD_FILE
 	fi
 	if [ -f "$RENDER_MODIFY_FILE" ]; then
-		ldapadd -x -w password -D "cn=admin,dc=haunui,dc=local" -H ldap://192.168.0.5/ -f $RENDER_MODIFY_FILE
+		ldapadd -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -f $RENDER_MODIFY_FILE
 	fi
 
 	echo "Users imported"
