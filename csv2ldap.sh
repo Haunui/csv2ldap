@@ -52,6 +52,7 @@ while IFS= read -r line; do
 		MAIL_ADDRESS=
 		GROUP=
 		GROUP2_NAME=
+                VPC=
 		
 
 		col=0
@@ -76,19 +77,22 @@ while IFS= read -r line; do
 						GROUP2_NAME=ldapstandard
 					fi
 					;;
+                                Client)
+                                        VPC=$data
+                                        ;;
 			esac
 
 			col=$(($col+1))
 		done
 
-		DN="uid=$ID,ou=users,$DN"
-		found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "$DN" 2> /dev/null)
+		TARGET_DN="uid=$ID,ou=users,ou=$VPC,$DN"
+		found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "$TARGET_DN" 2> /dev/null)
 
 		if [ $? -eq 0 ]; then # EXIST
 			if [[ $(echo "$found" | grep "cn: " | sed 's/cn: //g') != $FIRST_NAME ]]; then
 				update=$(cat "$U_TEMPLATE_FILE")
 				echo "$update" | \
-					sed "s/{{DN}}/$DN/" | \
+					sed "s/{{DN}}/$TARGET_DN/" | \
 					sed "s/{{ACTION}}/replace/" | \
 					sed "s/{{ATTR}}/cn/" | \
 					sed "s/{{VALUE}}/$FIRST_NAME/" >> $U_RENDER_FILE
@@ -98,7 +102,7 @@ while IFS= read -r line; do
 			if [[ $(echo "$found" | grep "sn: " | sed 's/sn: //g') != $LAST_NAME ]]; then
 				update=$(cat "$U_TEMPLATE_FILE")
 				echo "$update" | \
-					sed "s/{{DN}}/$DN/" | \
+					sed "s/{{DN}}/$TARGET_DN/" | \
 					sed "s/{{ACTION}}/replace/" | \
 					sed "s/{{ATTR}}/sn/" | \
 					sed "s/{{VALUE}}/$LAST_NAME/" >> $U_RENDER_FILE
@@ -109,7 +113,7 @@ while IFS= read -r line; do
 			if [[ $(echo "$found" | grep "mail: " | sed 's/mail: //g') != $MAIL_ADDRESS ]]; then
 				update=$(cat "$U_TEMPLATE_FILE")
 				echo "$update" | \
-					sed "s/{{DN}}/$DN/" | \
+					sed "s/{{DN}}/$TARGET_DN/" | \
 					sed "s/{{ACTION}}/replace/" | \
 					sed "s/{{ATTR}}/mail/" | \
 					sed "s/{{VALUE}}/$MAIL_ADDRESS/" >> $U_RENDER_FILE
@@ -117,14 +121,14 @@ while IFS= read -r line; do
 				echo "" >> $U_RENDER_FILE
 			fi
 
-			DN="cn=ldapstandard,ou=groups,$DN"
-			found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "$DN" 2> /dev/null)
+			TARGET_DN="cn=ldapstandard,ou=groups,ou=$VPC,$DN"
+			found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "$TARGET_DN" 2> /dev/null)
 
 			if [[ $GROUP2_NAME == ldapadmin ]]; then
 				if echo "$found" | grep "memberUid: $ID" &>/dev/null; then
 					update=$(cat "$U_TEMPLATE_FILE")
 					echo "$update" | \
-						sed "s/{{DN}}/$DN/" | \
+                                                sed "s/{{DN}}/$TARGET_DN/" | \
 						sed "s/{{ACTION}}/delete/" | \
 						sed "s/{{ATTR}}/memberUid/" | \
 						sed "s/{{VALUE}}/$GROUP2_NAME/" >> $U_RENDER_FILE
@@ -135,7 +139,7 @@ while IFS= read -r line; do
 				if ! echo "$found" | grep "memberUid: $ID" &>/dev/null; then
 					update=$(cat "$U_TEMPLATE_FILE")
 					echo "$update" | \
-						sed "s/{{DN}}/$DN/" | \
+                                                sed "s/{{DN}}/$TARGET_DN/" | \
 						sed "s/{{ACTION}}/add/" | \
 						sed "s/{{ATTR}}/memberUid/" | \
 						sed "s/{{VALUE}}/$GROUP2_NAME/" >> $U_RENDER_FILE
@@ -145,14 +149,14 @@ while IFS= read -r line; do
 			fi
 
 
-			DN="cn=ldapadmin,ou=groups,$DN"
-			found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "$DN" 2> /dev/null)
+			TARGET_DN="cn=ldapadmin,ou=groups,ou=$VPC,$DN"
+			found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "$TARGET_DN" 2> /dev/null)
 
 			if [[ $GROUP2_NAME == ldapstandard ]]; then
 				if echo "$found" | grep "memberUid: $ID" &>/dev/null; then
 					update=$(cat "$U_TEMPLATE_FILE")
 					echo "$update" | \
-						sed "s/{{DN}}/$DN/" | \
+                                                sed "s/{{DN}}/$TARGET_DN/" | \
 						sed "s/{{ACTION}}/delete/" | \
 						sed "s/{{ATTR}}/memberUid/" | \
 						sed "s/{{VALUE}}/$GROUP2_NAME/" >> $U_RENDER_FILE
@@ -163,7 +167,7 @@ while IFS= read -r line; do
 				if ! echo "$found" | grep "memberUid: $ID" &>/dev/null; then
 					update=$(cat "$U_TEMPLATE_FILE")
 					echo "$update" | \
-						sed "s/{{DN}}/$DN/" | \
+                                                sed "s/{{DN}}/$TARGET_DN/" | \
 						sed "s/{{ACTION}}/add/" | \
 						sed "s/{{ATTR}}/memberUid/" | \
 						sed "s/{{VALUE}}/$GROUP2_NAME/" >> $U_RENDER_FILE
@@ -187,6 +191,7 @@ while IFS= read -r line; do
 
 
 			# PARSE adduser.ldif
+                        sed -i "s/{{DN}}/ou=$VPC,$DN/" $AU_RENDER_FILE
 			sed -i "s/{{ID}}/$ID/g" $AU_RENDER_FILE
 			sed -i "s/{{FIRST_NAME}}/$FIRST_NAME/g" $AU_RENDER_FILE
 			sed -i "s/{{LAST_NAME}}/$LAST_NAME/g" $AU_RENDER_FILE
@@ -196,11 +201,13 @@ while IFS= read -r line; do
 			sed -i "s/{{PASSWORD}}/$(bash random_password 16 3)/" $AU_RENDER_FILE
 
 			# PARSE addgrp.ldif (user group)
+                        sed -i "s/{{DN}}/ou=$VPC,$DN/" $AG_RENDER_FILE
 			sed -i "s/{{GROUP1_NAME}}/$ID/g" $AG_RENDER_FILE
 			sed -i "s/{{GROUP1_ID}}/$UID_NUMBER/g" $AG_RENDER_FILE
 			cat $AG_RENDER_FILE >> $RENDER_ADD_FILE
 
 			# PARSE adduser2grp
+                        sed -i "s/{{DN}}/ou=$VPC,$DN/" $AU2G_RENDER_FILE
 			sed -i "s/{{GROUP2_NAME}}/$GROUP2_NAME/g" $AU2G_RENDER_FILE
 			sed -i "s/{{ID}}/$ID/g" $AU2G_RENDER_FILE
 
@@ -210,11 +217,7 @@ while IFS= read -r line; do
 			cat $AU2G_RENDER_FILE >> $RENDER_MODIFY_FILE
 		fi
 
-		# RECUPERE TOUS LES UTILISATEURS LDAP
-		# RECUPERE TOUS LES UTILISATEURS CSV
-		# SI PAS PRESENT DANS LE CSV, CA DEGAGE
-
-		uidlist=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -b "ou=users,$DN" | grep "uid=" | sed 's/dn: //g')
+		uidlist=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -b "ou=users,ou=$VPC,$DN" | grep "uid=" | sed 's/dn: //g')
 
 		while IFS= read -r line; do
 			ID=$(echo "$line" | cut -d',' -f1 | cut -d'=' -f2)

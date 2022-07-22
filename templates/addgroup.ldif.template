@@ -1,4 +1,4 @@
-dn: cn={{GROUP1_NAME}},ou=groups,dc=haunui,dc=local
+dn: cn={{GROUP1_NAME}},ou=groups,{{DN}}
 objectClass: top
 objectClass: posixGroup
 gidNumber: {{GROUP1_ID}}

@@ -1,4 +1,4 @@
-dn: uid={{ID}},ou=people,dc=haunui,dc=local
+dn: uid={{ID}},ou=users,{{DN}}
 objectClass: top
 objectClass: posixAccount
 objectClass: inetOrgPerson

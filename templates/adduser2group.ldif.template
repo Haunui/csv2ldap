@@ -1,4 +1,4 @@
-dn: cn={{GROUP2_NAME}},ou=groups,dc=haunui,dc=local
+dn: cn={{GROUP2_NAME}},ou=groups,{{DN}}
 changetype: modify
 add: memberuid
 memberuid: {{ID}}
