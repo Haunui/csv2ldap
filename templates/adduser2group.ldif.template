@@ -1,0 +1,5 @@
+dn: cn={{GROUP2_NAME}},ou=groups,dc=haunui,dc=local
+changetype: modify
+add: memberuid
+memberuid: {{ID}}
+

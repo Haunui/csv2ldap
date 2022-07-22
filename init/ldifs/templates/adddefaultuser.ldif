@@ -1,0 +1,18 @@
+dn: uid=user1,ou=users,<##DN##>
+objectClass: top
+objectClass: posixAccount
+objectClass: inetOrgPerson
+cn: user1
+sn: user1
+uid: user1
+mail: user1@localhost
+uidNumber: 9999
+gidNumber: 9999
+loginShell: /bin/bash
+homeDirectory: /home/user1
+userpassword: {SSHA}UfLKm2N+lYfDpoVm8QiA8PnMg4bND7G6
+
+dn: cn=user1,ou=groups,<##DN##>
+objectClass: top
+objectClass: posixGroup
+gidNumber: 9999

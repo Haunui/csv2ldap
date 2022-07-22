@@ -1,0 +1,14 @@
+dn: uid={{ID}},ou=people,dc=haunui,dc=local
+objectClass: top
+objectClass: posixAccount
+objectClass: inetOrgPerson
+cn: {{FIRST_NAME}}
+sn: {{LAST_NAME}}
+uid: {{ID}}
+mail: {{MAIL_ADDRESS}}
+uidNumber: {{UID_NUMBER}}
+gidNumber: {{GID_NUMBER}}
+loginShell: /bin/bash
+homeDirectory: /home/{{ID}}
+userpassword: {{PASSWORD}}
+

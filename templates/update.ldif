@@ -1,0 +1,4 @@
+dn: {{DN}}
+changetype: modify
+{{ACTION}}: {{ATTR}}
+{{ATTR}}: {{VALUE}}

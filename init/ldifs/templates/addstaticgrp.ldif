@@ -1,0 +1,9 @@
+dn: cn=ldapadmin,ou=groups,<##DN##>
+objectClass: top
+objectClass: posixGroup
+gidNumber: 98713
+
+dn: cn=ldapstandard,ou=groups,<##DN##>
+objectClass: top
+objectClass: posixGroup
+gidNumber: 98714

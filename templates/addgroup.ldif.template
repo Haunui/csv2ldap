@@ -1,0 +1,5 @@
+dn: cn={{GROUP1_NAME}},ou=groups,dc=haunui,dc=local
+objectClass: top
+objectClass: posixGroup
+gidNumber: {{GROUP1_ID}}
+
