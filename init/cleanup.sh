@@ -8,16 +8,11 @@ if [ -z "$IP" ] || [ -z "$DN" ]; then
   exit 1
 fi
 
-echo "Remove ou=users .."
-for i in $(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP -b "$DN" | grep "dn:" | grep "ou=users,$DN" | sed 's/dn: //g' | tac); do
+echo "Remove $DN content .."
+for i in $(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP -b "$DN" | grep "dn:" | grep "$DN" | sed 's/dn: //g' | grep -v "^$DN$" | tac); do
 	ldapdelete -x -w password -D "cn=admin,$DN" -H ldap://$IP/ "$i"
 done
 
-echo "Remove ou=groups .."
-for i in $(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP -b "$DN" | grep "dn:" | grep "ou=groups,$DN" | sed 's/dn: //g' | tac); do
-	ldapdelete -x -w password -D "cn=admin,$DN" -H ldap://$IP/ "$i"
-done
-
-echo "10000" > ../BASE_ID
+rm -f ../BASE_ID/*
 
 echo "Done"

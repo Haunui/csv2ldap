@@ -4,10 +4,14 @@ FILE=$1
 IP=$2
 DN=$3
 
+AOU_TEMPLATE_FILE=templates/addou.ldif.template
+ADG_TEMPLATE_FILE=templates/addstaticgrp.ldif.template
 AU_TEMPLATE_FILE=templates/adduser.ldif.template
 AG_TEMPLATE_FILE=templates/addgroup.ldif.template
 AU2G_TEMPLATE_FILE=templates/adduser2group.ldif.template
 U_TEMPLATE_FILE=templates/update.ldif
+AOU_RENDER_FILE=render/addou.ldif
+ADG_RENDER_FILE=render/addstaticgrp.ldif
 AU_RENDER_FILE=render/adduser.ldif
 AG_RENDER_FILE=render/addgroup.ldif
 AU2G_RENDER_FILE=render/adduser2group.ldif
@@ -23,27 +27,19 @@ if [ -z "$FILE" ] || [ -z "$IP" ] || [ -z "$DN" ]; then
 	exit 1
 fi
 
+mkdir -p render
+mkdir -p BASE_ID
+
 while IFS= read -r line; do
+	if ! echo "$line" | grep -v "^#" &>/dev/null; then
+		continue
+	fi
+
 	raw_datas=$(echo "$line" | sed 's/"//g' | tr ',' ' ')
 
 	if [ -z "$HEADER" ]; then
 		HEADER=($raw_datas)
 	else
-		BASE_ID=$(cat BASE_ID)
-		f=0
-		while [ $f -eq 0 ]; do
-			l_found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "ou=users,$DN" uidNumber=$BASE_ID | wc -l)
-
-
-			if [ $l_found -ne 0 ]; then
-				echo $(($BASE_ID+1)) > BASE_ID
-				BASE_ID=$(cat BASE_ID)
-			else
-				UID_NUMBER=$BASE_ID
-				f=1
-			fi
-		done
-
 		# RESET VAR.
 
 		ID=
@@ -53,7 +49,6 @@ while IFS= read -r line; do
 		GROUP=
 		GROUP2_NAME=
                 VPC=
-		
 
 		col=0
 		for data in $raw_datas; do
@@ -84,6 +79,39 @@ while IFS= read -r line; do
 
 			col=$(($col+1))
 		done
+
+                if ! ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "ou=$VPC,$DN" &> /dev/null; then
+			addou=$(cat "$AOU_TEMPLATE_FILE")
+			echo "$addou" | \
+				sed "s/{{DN}}/ou=$VPC,$DN/" | \
+				sed "s/{{OU_NAME}}/$VPC/" > $AOU_RENDER_FILE
+
+			addstaticgrp=$(cat "$ADG_TEMPLATE_FILE")
+			echo "$addstaticgrp" | sed "s/{{DN}}/ou=$VPC,$DN/" > $ADG_RENDER_FILE
+
+			ldapadd -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -f $AOU_RENDER_FILE
+			ldapadd -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -f $ADG_RENDER_FILE
+
+			rm -f $AOU_RENDER_FILE
+			rm -f $ADG_RENDER_FILE
+
+			echo "10000" > BASE_ID/$VPC
+                fi
+
+		BASE_ID=$(cat BASE_ID/$VPC)
+		f=0
+		while [ $f -eq 0 ]; do
+			l_found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "ou=users,ou=$VPC,$DN" uidNumber=$BASE_ID | wc -l)
+
+			if [ $l_found -ne 0 ]; then
+				echo $(($BASE_ID+1)) > BASE_ID/$VPC
+				BASE_ID=$(cat BASE_ID/$VPC)
+			else
+				UID_NUMBER=$BASE_ID
+				f=1
+			fi
+		done
+
 
 		TARGET_DN="uid=$ID,ou=users,ou=$VPC,$DN"
 		found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "$TARGET_DN" 2> /dev/null)
@@ -131,7 +159,7 @@ while IFS= read -r line; do
                                                 sed "s/{{DN}}/$TARGET_DN/" | \
 						sed "s/{{ACTION}}/delete/" | \
 						sed "s/{{ATTR}}/memberUid/" | \
-						sed "s/{{VALUE}}/$GROUP2_NAME/" >> $U_RENDER_FILE
+						sed "s/{{VALUE}}/$ID/" >> $U_RENDER_FILE
 
 					echo "" >> $U_RENDER_FILE
 				fi
@@ -142,7 +170,7 @@ while IFS= read -r line; do
                                                 sed "s/{{DN}}/$TARGET_DN/" | \
 						sed "s/{{ACTION}}/add/" | \
 						sed "s/{{ATTR}}/memberUid/" | \
-						sed "s/{{VALUE}}/$GROUP2_NAME/" >> $U_RENDER_FILE
+						sed "s/{{VALUE}}/$ID/" >> $U_RENDER_FILE
 
 					echo "" >> $U_RENDER_FILE
 				fi
@@ -159,7 +187,7 @@ while IFS= read -r line; do
                                                 sed "s/{{DN}}/$TARGET_DN/" | \
 						sed "s/{{ACTION}}/delete/" | \
 						sed "s/{{ATTR}}/memberUid/" | \
-						sed "s/{{VALUE}}/$GROUP2_NAME/" >> $U_RENDER_FILE
+						sed "s/{{VALUE}}/$ID/" >> $U_RENDER_FILE
 
 					echo "" >> $U_RENDER_FILE
 				fi
@@ -170,7 +198,7 @@ while IFS= read -r line; do
                                                 sed "s/{{DN}}/$TARGET_DN/" | \
 						sed "s/{{ACTION}}/add/" | \
 						sed "s/{{ATTR}}/memberUid/" | \
-						sed "s/{{VALUE}}/$GROUP2_NAME/" >> $U_RENDER_FILE
+						sed "s/{{VALUE}}/$ID/" >> $U_RENDER_FILE
 
 					echo "" >> $U_RENDER_FILE
 				fi
@@ -221,11 +249,58 @@ while IFS= read -r line; do
 
 		while IFS= read -r line; do
 			ID=$(echo "$line" | cut -d',' -f1 | cut -d'=' -f2)
-			if ! grep "$ID" data.csv &>/dev/null; then
+
+			if ! grep "$ID" data.csv | grep "$VPC" &>/dev/null; then
 				ldapdelete -x -w password -D "cn=admin,$DN" -H ldap://$IP/ "$line"
+
+				for others_ou in $(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -s one -b "$DN" | grep "dn: " | sed 's/dn: //g'); do
+					if [[ $others_ou == ou=$VPC,$DN ]]; then
+						continue
+					fi
+
+					TARGET_DN="cn=ldapadmin,ou=groups,$others_ou"
+					found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "$TARGET_DN" 2> /dev/null)
+
+					if echo "$found" | grep "memberUid: $ID" &>/dev/null; then
+						update=$(cat "$U_TEMPLATE_FILE")
+						echo "$update" | \
+							sed "s/{{DN}}/$TARGET_DN/" | \
+							sed "s/{{ACTION}}/delete/" | \
+							sed "s/{{ATTR}}/memberUid/" | \
+							sed "s/{{VALUE}}/$GROUP2_NAME/" >> $U_RENDER_FILE
+
+						echo "" >> $U_RENDER_FILE
+					fi
+
+					TARGET_DN="cn=standard,ou=groups,$others_ou"
+					found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "$TARGET_DN" 2> /dev/null)
+
+					if echo "$found" | grep "memberUid: $ID" &>/dev/null; then
+						update=$(cat "$U_TEMPLATE_FILE")
+						echo "$update" | \
+							sed "s/{{DN}}/$TARGET_DN/" | \
+							sed "s/{{ACTION}}/delete/" | \
+							sed "s/{{ATTR}}/memberUid/" | \
+							sed "s/{{VALUE}}/$GROUP2_NAME/" >> $U_RENDER_FILE
+
+						echo "" >> $U_RENDER_FILE
+					fi
+					
+				done
+
 				echo "User $line removed"
 			fi
 		done <<< "$uidlist"
+
+		gidlist=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -b "ou=groups,ou=$VPC,$DN" | grep "cn=" | sed 's/dn: //g')
+
+		while IFS= read -r line; do
+			ID=$(echo "$line" | cut -d',' -f1 | cut -d'=' -f2)
+			if ! grep "$ID" data.csv | grep "$VPC" &>/dev/null && [[ $ID != ldapadmin ]] && [[ $ID != ldapstandard ]]; then
+				ldapdelete -x -w password -D "cn=admin,$DN" -H ldap://$IP/ "$line"
+				echo "Group $line removed"
+			fi
+		done <<< "$gidlist"
 	fi
 
 done < $FILE

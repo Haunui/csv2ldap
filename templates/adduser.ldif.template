@@ -10,5 +10,5 @@ uidNumber: {{UID_NUMBER}}
 gidNumber: {{GID_NUMBER}}
 loginShell: /bin/bash
 homeDirectory: /home/{{ID}}
-userpassword: {{PASSWORD}}
+userPassword: {{PASSWORD}}
 

@@ -8,6 +8,6 @@ if [ -z "$IP" ] || [ -z "$DN" ]; then
   exit 1
 fi
 
-bash cleanup.sh "$IP"
+bash cleanup.sh "$IP" "$DN"
 bash init.sh "$IP" "$DN"
 
