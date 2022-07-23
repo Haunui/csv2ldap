@@ -99,19 +99,11 @@ while IFS= read -r line; do
                 fi
 
 		BASE_ID=$(cat BASE_ID/$VPC)
-		f=0
-		while [ $f -eq 0 ]; do
-			l_found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "ou=users,ou=$VPC,$DN" uidNumber=$BASE_ID | wc -l)
 
-			if [ $l_found -ne 0 ]; then
-				echo $(($BASE_ID+1)) > BASE_ID/$VPC
-				BASE_ID=$(cat BASE_ID/$VPC)
-			else
-				UID_NUMBER=$BASE_ID
-				f=1
-			fi
-		done
+		BASE_ID=$(($BASE_ID+1))
+		echo "$BASE_ID" > BASE_ID/$VPC
 
+		UID_NUMBER=$BASE_ID
 
 		TARGET_DN="uid=$ID,ou=users,ou=$VPC,$DN"
 		found=$(ldapsearch -x -w password -D "cn=admin,$DN" -H ldap://$IP/ -LLL -b "$TARGET_DN" 2> /dev/null)
